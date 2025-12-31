@@ -408,9 +408,18 @@
                 </div>
             </div>
             
+            <div class="form-group">
+                <label for="image-count">故事图片数量：</label>
+                <input type="number" id="image-count" min="1" max="50" value="5" placeholder="默认为5">
+                <small>如果自动检测失败，请手动设置</small>
+            </div>
+            
             <div id="image-check-result"></div>
             
             <div style="text-align: center; margin-top: 30px;">
+                <button type="button" class="btn" id="test-images" style="background-color: #6c757d; margin-right: 10px;">
+                    测试图片加载
+                </button>
                 <button type="submit" class="btn btn-primary">开始实验</button>
             </div>
         </form>
@@ -421,7 +430,7 @@
         <h2>实验指导语</h2>
         
         <div class="instructions">
-            <p>亲爱的小朋友，你好！</p>
+            <p>亲爱的朋友，你好！</p>
             <p>欢迎参加我们的讲故事实验。</p>
             <p>接下来你会看到一组图片，它们讲述了一个完整的故事。</p>
             <p>首先，请你仔细浏览每一张图片，了解整个故事的内容。</p>
@@ -660,7 +669,7 @@
                 totalTime: 0
             },
             currentImageIndex: 0,
-            totalImages: 0,
+            totalImages: 6, // 默认值
             audioContext: null,
             mediaStream: null,
             processor: null,
@@ -675,13 +684,14 @@
             isGeneratingZip: false
         };
 
-        // 应用配置
+        // 应用配置 - 关键修改：适应GitHub Pages路径
         const AppConfig = {
-            imageFolder: 'picture',
+            imageFolder: '/-/picture', // GitHub Pages路径
             imageFormat: 'jpg',
             startIndex: 1,
             maxImages: 50,
-            audioSampleRate: 44100
+            audioSampleRate: 44100,
+            imageFormats: ['jpg', 'jpeg', 'png', 'gif', 'webp']
         };
 
         // DOM元素
@@ -698,84 +708,64 @@
 
         // 初始化函数
         async function initApp() {
+            console.log('初始化应用...');
+            console.log('当前页面URL:', window.location.href);
+            console.log('图片路径配置:', AppConfig.imageFolder);
+            
             // 设置当前日期时间为默认值
             const now = new Date();
             const localDateTime = now.toISOString().slice(0, 16);
             document.getElementById('experiment-date').value = localDateTime;
             
-            // 检测图片数量
-            await detectTotalImages();
+            // 设置默认图片数量
+            const imageCountInput = document.getElementById('image-count');
+            if (imageCountInput) {
+                imageCountInput.value = AppState.totalImages;
+            }
             
-            // 更新进度条
+            // 初始化进度条
             updateProgress();
             
             // 设置事件监听器
             setupEventListeners();
-        }
-
-        // 检测图片总数（简化版，适合GitHub Pages）
-        async function detectTotalImages() {
-            const resultDiv = document.getElementById('image-check-result');
-            resultDiv.innerHTML = '<div>正在检测图片...</div>';
             
-            // 简化检测逻辑：尝试检测1-10张图片
-            let detectedCount = 0;
-            const imageFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            
-            for (let i = 1; i <= 10; i++) {
-                let found = false;
-                
-                for (const format of imageFormats) {
-                    const imageUrl = `${AppConfig.imageFolder}/${i}.${format}`;
-                    const exists = await checkImageExists(imageUrl);
-                    
-                    if (exists) {
-                        found = true;
-                        if (i > detectedCount) {
-                            detectedCount = i;
-                        }
-                        // 记录检测到的格式
-                        AppConfig.imageFormat = format;
-                        break;
-                    }
-                }
-                
-                // 如果连续2张图片都没找到，停止检测
-                if (!found && i > 2 && detectedCount === 0) {
-                    break;
-                }
-            }
-            
-            AppState.totalImages = detectedCount > 0 ? detectedCount : 5; // 默认5张
-            
-            if (detectedCount > 0) {
-                resultDiv.innerHTML = `<div class="success-message">
-                    检测到 ${detectedCount} 张图片，格式为 ${AppConfig.imageFormat}
-                </div>`;
-            } else {
-                resultDiv.innerHTML = `<div class="error-message">
-                    未检测到图片，将使用默认设置（5张图片）
-                    <br><small>请确保在 <strong>${AppConfig.imageFolder}</strong> 文件夹中有按数字命名的图片文件</small>
-                </div>`;
-            }
-            
-            // 初始化图片浏览时间记录数组
-            AppState.imageViewTimes = new Array(AppState.totalImages).fill(0);
-            
-            // 更新页面显示
-            document.getElementById('total-pages').textContent = AppState.totalImages;
+            // 显示当前配置
+            document.getElementById('image-check-result').innerHTML = `
+                <div class="success-message">
+                    当前图片路径: ${AppConfig.imageFolder}/1.jpg
+                </div>
+            `;
         }
 
         // 检查图片是否存在
         function checkImageExists(url) {
             return new Promise((resolve) => {
                 const img = new Image();
-                img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                img.src = url;
+                let timedOut = false;
                 
-                // 设置超时
-                setTimeout(() => resolve(false), 2000);
+                const timer = setTimeout(() => {
+                    timedOut = true;
+                    img.src = ''; // 停止加载
+                    resolve(false);
+                }, 2000); // 2秒超时
+                
+                img.onload = function() {
+                    if (!timedOut) {
+                        clearTimeout(timer);
+                        resolve(true);
+                    }
+                };
+                
+                img.onerror = function() {
+                    if (!timedOut) {
+                        clearTimeout(timer);
+                        resolve(false);
+                    }
+                };
+                
+                // 添加时间戳防止缓存
+                const cacheBuster = `?t=${Date.now()}`;
+                img.src = url + cacheBuster;
             });
         }
 
@@ -787,6 +777,9 @@
                 saveChildInfo();
                 goToStep(2);
             });
+
+            // 测试图片加载按钮
+            document.getElementById('test-images').addEventListener('click', testImageLoading);
 
             // 返回按钮
             document.getElementById('back-to-info').addEventListener('click', () => goToStep(1));
@@ -837,6 +830,70 @@
             document.getElementById('restart-experiment').addEventListener('click', restartExperiment);
         }
 
+        // 测试图片加载
+        async function testImageLoading() {
+            const testBtn = document.getElementById('test-images');
+            const originalText = testBtn.textContent;
+            testBtn.textContent = '测试中...';
+            testBtn.disabled = true;
+            
+            const resultDiv = document.getElementById('image-check-result');
+            resultDiv.innerHTML = '<div>正在测试图片加载...</div>';
+            
+            // 获取手动设置的图片数量
+            const manualCount = parseInt(document.getElementById('image-count').value) || 5;
+            AppState.totalImages = manualCount;
+            
+            // 测试前3张图片
+            let successCount = 0;
+            const testResults = [];
+            
+            for (let i = 1; i <= Math.min(3, AppState.totalImages); i++) {
+                const testUrl = `${AppConfig.imageFolder}/${i}.${AppConfig.imageFormat}`;
+                
+                try {
+                    const exists = await checkImageExists(testUrl);
+                    if (exists) {
+                        successCount++;
+                        testResults.push(`✅ 图片 ${i}: 可加载`);
+                    } else {
+                        testResults.push(`❌ 图片 ${i}: 不可加载`);
+                    }
+                } catch (error) {
+                    testResults.push(`❌ 图片 ${i}: 检测失败`);
+                }
+                
+                // 延迟一下，避免请求过快
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            if (successCount > 0) {
+                resultDiv.innerHTML = `
+                    <div class="success-message">
+                        <strong>✅ 图片加载测试成功！</strong><br>
+                        ${testResults.join('<br>')}<br><br>
+                        已检测到 ${successCount} 张图片可正常加载<br>
+                        使用图片数量: ${AppState.totalImages}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="error-message">
+                        <strong>❌ 图片加载测试失败</strong><br>
+                        ${testResults.join('<br>')}<br><br>
+                        请检查：<br>
+                        1. 图片文件夹路径是否正确<br>
+                        2. 图片格式是否正确（当前: ${AppConfig.imageFormat})<br>
+                        3. 图片文件名是否为 1.jpg, 2.jpg 格式<br>
+                        4. GitHub Pages 是否已正确部署
+                    </div>
+                `;
+            }
+            
+            testBtn.textContent = originalText;
+            testBtn.disabled = false;
+        }
+
         // 保存信息
         function saveChildInfo() {
             AppState.childInfo = {
@@ -845,6 +902,13 @@
                 gender: document.getElementById('child-gender').value,
                 experimentDate: document.getElementById('experiment-date').value
             };
+            
+            // 获取手动设置的图片数量
+            const imageCountInput = document.getElementById('image-count');
+            if (imageCountInput) {
+                const manualCount = parseInt(imageCountInput.value) || 5;
+                AppState.totalImages = manualCount;
+            }
         }
 
         // 导航到指定步骤
@@ -855,7 +919,7 @@
                 fromStep: AppState.currentStep,
                 toStep: step,
                 timestamp: timestamp,
-                timeFromStart: timestamp - AppState.timers.totalStart
+                timeFromStart: timestamp - (AppState.timers.totalStart || timestamp)
             });
             
             // 隐藏所有部分
@@ -907,19 +971,22 @@
         function loadStoryImages() {
             AppState.currentImageIndex = 0;
             document.getElementById('total-pages').textContent = AppState.totalImages;
-            showCurrentImage();
             
             // 初始化图片浏览时间记录
             AppState.imageViewTimes = new Array(AppState.totalImages).fill(0);
             AppState.pageNavigationLog = [];
+            
+            showCurrentImage();
         }
 
         // 显示当前图片
         function showCurrentImage() {
             // 记录前一张图片的浏览时间
-            if (AppState.currentImageViewStart) {
+            if (AppState.currentImageViewStart && AppState.currentImageIndex >= 0) {
                 const viewTime = Date.now() - AppState.currentImageViewStart;
-                AppState.imageViewTimes[AppState.currentImageIndex] += viewTime;
+                if (AppState.imageViewTimes[AppState.currentImageIndex] !== undefined) {
+                    AppState.imageViewTimes[AppState.currentImageIndex] += viewTime;
+                }
             }
             
             const imageNumber = AppState.currentImageIndex + AppConfig.startIndex;
@@ -927,11 +994,14 @@
             
             const imgElement = document.getElementById('current-image');
             
-            // 设置错误处理
+            // 清除之前的错误处理
+            imgElement.onerror = null;
+            
+            // 设置新的错误处理
             imgElement.onerror = function() {
                 console.error(`无法加载图片: ${imageUrl}`);
                 // 显示占位图片
-                this.onerror = null;
+                this.onerror = null; // 防止循环
                 this.src = `https://placehold.co/800x500/4a6fa5/white?text=故事图片${imageNumber}&font=arial`;
                 this.alt = `故事图片 ${imageNumber}（占位图）`;
             };
@@ -940,16 +1010,23 @@
                 console.log(`成功加载图片: ${imageUrl}`);
             };
             
-            imgElement.src = imageUrl;
+            // 添加时间戳防止缓存
+            imgElement.src = imageUrl + `?t=${Date.now()}`;
             imgElement.alt = `故事图片 ${imageNumber}`;
+            
             document.getElementById('current-page').textContent = AppState.currentImageIndex + 1;
             
             // 开始记录当前图片的浏览时间
             AppState.currentImageViewStart = Date.now();
             
             // 更新按钮状态
-            document.getElementById('prev-btn').disabled = AppState.currentImageIndex === 0;
-            document.getElementById('next-btn').disabled = AppState.currentImageIndex === AppState.totalImages - 1;
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            
+            if (prevBtn && nextBtn) {
+                prevBtn.disabled = AppState.currentImageIndex === 0;
+                nextBtn.disabled = AppState.currentImageIndex === AppState.totalImages - 1;
+            }
         }
 
         // 显示上一张图片
@@ -971,6 +1048,8 @@
         // 加载所有图片用于录音界面
         function loadAllImages() {
             const container = document.getElementById('all-images-container');
+            if (!container) return;
+            
             container.innerHTML = '';
             
             for (let i = 0; i < AppState.totalImages; i++) {
@@ -978,14 +1057,17 @@
                 const imageNumber = i + AppConfig.startIndex;
                 const imageUrl = `${AppConfig.imageFolder}/${imageNumber}.${AppConfig.imageFormat}`;
                 
-                img.src = imageUrl;
+                // 添加时间戳防止缓存
+                const cacheBuster = `?t=${Date.now() + i}`; // 每张图片不同的时间戳
+                
+                img.src = imageUrl + cacheBuster;
                 img.alt = `故事图片 ${i + 1}`;
                 img.className = 'story-thumbnail';
                 
                 // 添加错误处理
                 img.onerror = function() {
                     console.error(`无法加载缩略图: ${imageUrl}`);
-                    this.onerror = null;
+                    this.onerror = null; // 防止循环
                     this.src = `https://placehold.co/180x120/6b9ac4/white?text=图片${i+1}&font=arial`;
                 };
                 
@@ -1117,6 +1199,8 @@
         // 开始录音计时器
         function startRecordingTimer() {
             const timerElement = document.querySelector('#recording-status .timer');
+            if (!timerElement) return;
+            
             const startTime = Date.now();
             
             const timerInterval = setInterval(() => {
@@ -1217,7 +1301,9 @@
             
             // 3. 图片浏览详情
             txtContent += `【图片浏览详情】\n`;
-            txtContent += `总图片数：${AppState.totalImages}\n\n`;
+            txtContent += `总图片数：${AppState.totalImages}\n`;
+            txtContent += `图片路径：${AppConfig.imageFolder}\n`;
+            txtContent += `图片格式：${AppConfig.imageFormat}\n\n`;
             
             let totalImageViewTime = 0;
             for (let i = 0; i < AppState.totalImages; i++) {
@@ -1227,7 +1313,10 @@
             }
             
             txtContent += `\n图片浏览总时间：${formatTime(totalImageViewTime)}\n`;
-            txtContent += `平均每张图片浏览时间：${formatTime(totalImageViewTime / AppState.totalImages)}\n\n`;
+            if (AppState.totalImages > 0) {
+                txtContent += `平均每张图片浏览时间：${formatTime(totalImageViewTime / AppState.totalImages)}\n`;
+            }
+            txtContent += `\n`;
             
             // 4. 录音信息
             txtContent += `【录音信息】\n`;
@@ -1337,9 +1426,7 @@
                 audioPlayer.src = audioUrl;
                 
                 // 清理URL
-                audioPlayer.onload = () => {
-                    setTimeout(() => URL.revokeObjectURL(audioUrl), 1000);
-                };
+                setTimeout(() => URL.revokeObjectURL(audioUrl), 1000);
             }
             
             // 显示数据文件信息
@@ -1457,6 +1544,7 @@
                 totalTime: 0
             };
             AppState.currentImageIndex = 0;
+            AppState.totalImages = 5;
             AppState.wavBlob = null;
             AppState.isRecording = false;
             AppState.imageViewTimes = [];
@@ -1490,8 +1578,11 @@
             const localDateTime = now.toISOString().slice(0, 16);
             document.getElementById('experiment-date').value = localDateTime;
             
-            // 重新检测图片
-            detectTotalImages();
+            // 重置图片数量
+            const imageCountInput = document.getElementById('image-count');
+            if (imageCountInput) {
+                imageCountInput.value = 5;
+            }
             
             // 返回第一步
             goToStep(1);
