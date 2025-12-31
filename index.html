@@ -687,7 +687,7 @@
         // 应用配置 - 关键修改：适应GitHub Pages路径
         const AppConfig = {
             imageFolder: '/-/picture', // GitHub Pages路径
-            imageFormat: 'jpg',
+            imageFormat: 'png',
             startIndex: 1,
             maxImages: 50,
             audioSampleRate: 44100,
@@ -732,7 +732,7 @@
             // 显示当前配置
             document.getElementById('image-check-result').innerHTML = `
                 <div class="success-message">
-                    当前图片路径: ${AppConfig.imageFolder}/1.jpg
+                    当前图片路径: ${AppConfig.imageFolder}/1.png
                 </div>
             `;
         }
@@ -884,7 +884,7 @@
                         请检查：<br>
                         1. 图片文件夹路径是否正确<br>
                         2. 图片格式是否正确（当前: ${AppConfig.imageFormat})<br>
-                        3. 图片文件名是否为 1.jpg, 2.jpg 格式<br>
+                        3. 图片文件名是否为 1.png, 2.png 格式<br>
                         4. GitHub Pages 是否已正确部署
                     </div>
                 `;
