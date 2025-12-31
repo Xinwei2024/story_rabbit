@@ -725,7 +725,7 @@
 
         // 应用配置 - 修改为使用本地images文件夹
         const AppConfig = {
-            imageFolder: 'images', // 修改为同级目录的images文件夹
+            imageFolder: './images',   // ✅ 明确告诉浏览器：相对 index.html
             imageFormat: 'png', // 图片格式，根据实际情况修改
             startIndex: 1,
             maxImages: 50,
